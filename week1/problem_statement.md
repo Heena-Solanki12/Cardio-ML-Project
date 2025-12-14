@@ -85,11 +85,4 @@ Week-1 successfully provides:
 - Initial EDA  
 - Data issues identification  
 
-In **Week-2**, we will perform:
-- Data cleaning  
-- Outlier handling  
-- Encoding  
-- Scaling  
-- Full EDA visualizations  
-
 ---
