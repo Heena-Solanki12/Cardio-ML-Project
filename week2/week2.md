@@ -171,8 +171,3 @@ By the end of Week 2:
 - The preprocessing pipeline follows medical and academic standards
 
 ---
-
-## Next Steps (Week 3)
-- Implement Logistic Regression (from scratch)
-- Train the model using preprocessed data
-- Evaluate performance using accuracy, precision, recall, F1-score, and ROC curve
