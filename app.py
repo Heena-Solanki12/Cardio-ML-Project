@@ -518,7 +518,7 @@ with tab1:
             input_final = np.hstack((numeric_scaled, categorical_features))
             
             # Prediction
-            prob = model.predict_proba(input_final)[0]  # Probability of disease
+            prob = model.predict_proba(input_final)[0][1]  # Probability of disease
             pred = model.predict(input_final)[0]
             
             risk_text, risk_class, risk_emoji, risk_color = get_risk_level(prob)
