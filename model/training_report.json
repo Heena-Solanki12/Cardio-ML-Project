@@ -1,0 +1,69 @@
+{
+  "training_info": {
+    "timestamp": "2026-01-12 12:23:13",
+    "algorithm": "Logistic Regression (Custom Implementation)",
+    "learning_rate": 0.005,
+    "iterations": 3000,
+    "training_samples": 52326,
+    "test_samples": 13082,
+    "n_features": 12
+  },
+  "training_metrics": {
+    "accuracy": 0.7204640140656653,
+    "precision": 0.7420102464015613,
+    "recall": 0.6878368700765143,
+    "f1_score": 0.7138973105134473,
+    "specificity": 0.7540220973056794,
+    "roc_auc": 0.7850693183115985,
+    "confusion_matrix": {
+      "TP": 18249,
+      "TN": 19450,
+      "FP": 6345,
+      "FN": 8282
+    }
+  },
+  "test_metrics": {
+    "accuracy": 0.7261122152576058,
+    "precision": 0.7509049029285949,
+    "recall": 0.6880747776270164,
+    "f1_score": 0.7181181653685784,
+    "specificity": 0.7652349201426578,
+    "roc_auc": 0.7885972712360255,
+    "confusion_matrix": {
+      "TP": 4564,
+      "TN": 4935,
+      "FP": 1514,
+      "FN": 2069
+    }
+  },
+  "model_analysis": {
+    "status": "good",
+    "severity": "None",
+    "train_test_gap": -0.005648201191940538,
+    "explanation": "Model shows good generalization. Training accuracy (0.7205) and test accuracy (0.7261) are similar, indicating the model has learned meaningful patterns without overfitting.",
+    "recommendations": [
+      "Model is performing well",
+      "Continue monitoring on new data",
+      "Consider ensemble methods for improvement",
+      "Fine-tune hyperparameters for marginal gains"
+    ]
+  },
+  "feature_info": {
+    "numerical_features": [
+      "age (scaled)",
+      "height (scaled)",
+      "weight (scaled)",
+      "systolic_bp (scaled)",
+      "diastolic_bp (scaled)",
+      "bmi (scaled)"
+    ],
+    "categorical_features": [
+      "gender",
+      "cholesterol",
+      "glucose",
+      "smoking",
+      "alcohol",
+      "physical_activity"
+    ]
+  }
+}

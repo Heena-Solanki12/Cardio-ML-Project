@@ -235,8 +235,8 @@ def main():
     train_pred = model.predict(X_train.values)
     test_pred = model.predict(X_test.values)
     
-    train_proba = model.predict_proba(X_train.values)[:, 1]
-    test_proba = model.predict_proba(X_test.values)[:, 1]
+    train_proba = model.predict_proba(X_train.values)
+    test_proba = model.predict_proba(X_test.values)
     
     # Calculate metrics
     print("📈 Calculating performance metrics...\n")

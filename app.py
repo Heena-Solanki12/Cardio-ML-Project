@@ -1,219 +1,758 @@
 import streamlit as st
 import numpy as np
+import pandas as pd
 import pickle
 import json
+import plotly.graph_objects as go
 from datetime import datetime
 
 # ============================================================================
 # PAGE CONFIGURATION
 # ============================================================================
 st.set_page_config(
-    page_title="Cardiovascular Disease Risk Predictor",
-    page_icon="🫀",
+    page_title="CardioGuard AI - Cardiovascular Disease Predictor",
+    page_icon="❤️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # ============================================================================
-# THEME MANAGEMENT
+# SESSION STATE INITIALIZATION
 # ============================================================================
 if 'theme' not in st.session_state:
-    st.session_state.theme = 'light'
+    st.session_state.theme = 'dark'
+
+if 'show_results' not in st.session_state:
+    st.session_state.show_results = False
+
+if 'current_section' not in st.session_state:
+    st.session_state.current_section = 'home'
 
 def toggle_theme():
     st.session_state.theme = 'dark' if st.session_state.theme == 'light' else 'light'
 
+def navigate_to(section):
+    st.session_state.current_section = section
+
 # ============================================================================
-# DYNAMIC CSS BASED ON THEME
+# ENHANCED CSS WITH FIXED NAVIGATION AND SCROLLING
 # ============================================================================
 def get_theme_css(theme):
     if theme == 'dark':
         return """
         <style>
-            .main {
-                background-color: #0e1117;
-                color: #fafafa;
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+            
+            * {
+                font-family: 'Inter', sans-serif;
             }
-            .main-header {
-                font-size: 3.5rem;
+            
+            /* Hide Streamlit defaults */
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            
+            [data-testid="stAppViewContainer"] {
+                background: #0a0e27;
+            }
+            
+            [data-testid="stHeader"] {
+                background: transparent;
+            }
+            
+            [data-testid="stSidebar"] {
+                display: none;
+            }
+            
+            /* Smooth scroll */
+            html {
+                scroll-behavior: smooth;
+            }
+            
+            /* Fixed Navigation Bar */
+            .navbar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 9999;
+                background: rgba(10, 14, 39, 0.98);
+                backdrop-filter: blur(10px);
+                padding: 1rem 0;
+                border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            }
+            
+            .navbar-container {
+                max-width: 1400px;
+                margin: 0 auto;
+                padding: 0 2rem;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .navbar-brand {
+                font-size: 1.8rem;
                 font-weight: 800;
-                background: linear-gradient(135deg, #ff6b9d 0%, #c44569 50%, #8e2c52 100%);
+                background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
+                cursor: pointer;
+            }
+            
+            .navbar-menu {
+                display: flex;
+                gap: 2.5rem;
+                align-items: center;
+            }
+            
+            .nav-link {
+                color: #e2e8f0;
+                text-decoration: none;
+                font-weight: 500;
+                font-size: 0.95rem;
+                transition: all 0.3s;
+                cursor: pointer;
+                padding: 0.5rem 1rem;
+                border-radius: 8px;
+            }
+            
+            .nav-link:hover {
+                color: #3b82f6;
+                background: rgba(59, 130, 246, 0.1);
+            }
+            
+            /* Content padding for fixed navbar */
+            .main .block-container {
+                padding-top: 0 !important;
+                max-width: 100% !important;
+            }
+            
+            /* Hero Section */
+            .hero-section {
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: linear-gradient(135deg, rgba(10, 14, 39, 0.9) 0%, rgba(26, 31, 58, 0.9) 100%);
+                padding: 8rem 2rem 4rem;
+                margin-top: 70px;
+            }
+            
+            .hero-content {
+                max-width: 1400px;
+                width: 100%;
                 text-align: center;
+            }
+            
+            .hero-title {
+                font-size: 4.5rem;
+                font-weight: 800;
+                background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 50%, #8b5cf6 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin-bottom: 1.5rem;
+                line-height: 1.2;
+            }
+            
+            .hero-subtitle {
+                font-size: 1.5rem;
+                color: #94a3b8;
+                margin-bottom: 3rem;
+                font-weight: 400;
+            }
+            
+            /* Section */
+            .section {
+                padding: 6rem 2rem;
+                max-width: 1400px;
+                margin: 0 auto;
+            }
+            
+            .section-title {
+                font-size: 3rem;
+                font-weight: 800;
+                text-align: center;
+                background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
                 margin-bottom: 1rem;
+            }
+            
+            .section-subtitle {
+                font-size: 1.2rem;
+                color: #94a3b8;
+                text-align: center;
+                margin-bottom: 4rem;
+            }
+            
+            /* Stats Grid */
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 2rem;
+                margin-top: 3rem;
+            }
+            
+            .stat-card {
+                background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+                padding: 2rem;
+                border-radius: 16px;
+                text-align: center;
+                border: 2px solid #3b82f6;
+            }
+            
+            .stat-number {
+                font-size: 3rem;
+                font-weight: 800;
+                color: white;
+                margin-bottom: 0.5rem;
+            }
+            
+            .stat-label {
+                font-size: 1rem;
+                color: #bfdbfe;
+            }
+            
+            /* Features Grid */
+            .features-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 2rem;
+                margin-top: 3rem;
+            }
+            
+            .feature-card {
+                background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+                padding: 2.5rem;
+                border-radius: 20px;
+                border: 2px solid rgba(59, 130, 246, 0.2);
+                transition: all 0.3s;
+                text-align: center;
+            }
+            
+            .feature-card:hover {
+                transform: translateY(-10px);
+                border-color: #3b82f6;
+                box-shadow: 0 20px 40px rgba(59, 130, 246, 0.3);
+            }
+            
+            .feature-icon {
+                font-size: 3rem;
+                margin-bottom: 1.5rem;
+            }
+            
+            .feature-title {
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: #e2e8f0;
+                margin-bottom: 1rem;
+            }
+            
+            .feature-text {
+                font-size: 1rem;
+                color: #94a3b8;
+                line-height: 1.6;
+            }
+            
+            /* Assessment Container */
+            .assessment-container {
+                background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+                padding: 3rem;
+                border-radius: 24px;
+                border: 2px solid rgba(59, 130, 246, 0.3);
+                margin-top: 3rem;
+            }
+            
+            .form-section-title {
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: #3b82f6;
+                margin-bottom: 1.5rem;
+            }
+            
+            /* Results */
+            .results-hero {
+                background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+                padding: 3rem;
+                border-radius: 24px;
+                border: 3px solid #3b82f6;
+                margin: 3rem 0;
+                text-align: center;
+            }
+            
+            .risk-badge {
+                display: inline-block;
+                padding: 1rem 3rem;
+                border-radius: 50px;
+                font-size: 2.5rem;
+                font-weight: 800;
+                margin-bottom: 1.5rem;
+            }
+            
+            .risk-low {
+                background: linear-gradient(135deg, #059669 0%, #047857 100%);
+                color: white;
+            }
+            
+            .risk-moderate {
+                background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                color: white;
+            }
+            
+            .risk-high {
+                background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+                color: white;
+            }
+            
+            /* Footer */
+            .footer {
+                background: #0a0e27;
+                padding: 3rem 2rem;
+                text-align: center;
+                border-top: 1px solid rgba(59, 130, 246, 0.2);
+                margin-top: 4rem;
+            }
+            
+            .footer-text {
+                color: #94a3b8;
+                font-size: 0.95rem;
+                margin: 0.5rem 0;
+            }
+            
+            /* Streamlit Overrides */
+            .stButton>button {
+                width: 100%;
+                background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+                color: white;
+                padding: 1rem 2rem;
+                font-size: 1.1rem;
+                font-weight: 700;
+                border: none;
+                border-radius: 12px;
+                box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
+                transition: all 0.3s ease;
+            }
+            
+            .stButton>button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 12px 32px rgba(59, 130, 246, 0.6);
+            }
+            
+            /* Form elements */
+            .stSlider {
                 padding: 1rem 0;
             }
-            .section-header {
-                color: #ff6b9d;
-                font-size: 1.8rem;
-                font-weight: 700;
-                margin-top: 2rem;
-                margin-bottom: 1rem;
-                border-bottom: 3px solid #ff6b9d;
-                padding-bottom: 0.5rem;
+            
+            .stSelectbox {
+                padding: 0.5rem 0;
             }
-            .info-card {
-                background: linear-gradient(135deg, rgba(255,107,157,0.15) 0%, rgba(142,44,82,0.15) 100%);
-                padding: 1.5rem;
-                border-radius: 15px;
-                border: 2px solid rgba(255,107,157,0.4);
-                margin: 1rem 0;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            
+            .stRadio {
+                padding: 0.5rem 0;
             }
-            .metric-card {
-                background: linear-gradient(135deg, #1e2530 0%, #2d3748 100%);
-                padding: 1.5rem;
-                border-radius: 12px;
-                border: 2px solid #ff6b9d;
-                text-align: center;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            
+            /* Text colors - Dark Theme */
+            .main h1, .main h2, .main h3, .main h4 {
+                color: #e2e8f0 !important;
             }
-            .risk-high {
-                background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-                color: white;
-                padding: 2rem;
-                border-radius: 20px;
-                text-align: center;
-                box-shadow: 0 8px 16px rgba(231,76,60,0.4);
-                margin: 2rem 0;
+            
+            .main p, .main span, .main div, .main label {
+                color: #e2e8f0 !important;
             }
-            .risk-low {
-                background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
-                color: white;
-                padding: 2rem;
-                border-radius: 20px;
-                text-align: center;
-                box-shadow: 0 8px 16px rgba(39,174,96,0.4);
-                margin: 2rem 0;
+            
+            /* Metric styling */
+            [data-testid="stMetricValue"] {
+                color: #3b82f6 !important;
+                font-size: 2rem !important;
+                font-weight: 800 !important;
             }
-            .risk-moderate {
-                background: linear-gradient(135deg, #f39c12 0%, #d68910 100%);
-                color: white;
-                padding: 2rem;
-                border-radius: 20px;
-                text-align: center;
-                box-shadow: 0 8px 16px rgba(243,156,18,0.4);
-                margin: 2rem 0;
+            
+            [data-testid="stMetricLabel"] {
+                color: #94a3b8 !important;
             }
-            .prevention-card {
-                background: linear-gradient(135deg, rgba(255,107,157,0.1) 0%, rgba(142,44,82,0.1) 100%);
-                padding: 1.5rem;
-                border-radius: 15px;
-                border-left: 5px solid #ff6b9d;
-                margin: 1rem 0;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            
+            [data-testid="stMetricDelta"] {
+                color: #94a3b8 !important;
             }
-            .warning-box {
-                background: linear-gradient(135deg, rgba(231,76,60,0.2) 0%, rgba(192,57,43,0.2) 100%);
-                padding: 1.5rem;
-                border-radius: 12px;
-                border-left: 5px solid #e74c3c;
-                margin: 1.5rem 0;
+            
+            /* Fix Streamlit elements in dark theme */
+            .stMarkdown, .stMarkdown p {
+                color: #e2e8f0 !important;
             }
-            .stat-box {
-                background: #1e2530;
-                padding: 1rem;
-                border-radius: 10px;
-                border: 1px solid #ff6b9d;
-                margin: 0.5rem 0;
+            
+            /* Input labels */
+            label[data-testid="stWidgetLabel"] {
+                color: #94a3b8 !important;
             }
         </style>
         """
     else:  # light theme
         return """
         <style>
-            .main {
-                background-color: #ffffff;
-                color: #262730;
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+            
+            * {
+                font-family: 'Inter', sans-serif;
             }
-            .main-header {
-                font-size: 3.5rem;
+            
+            /* Hide Streamlit defaults */
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            
+            [data-testid="stAppViewContainer"] {
+                background: #ffffff;
+            }
+            
+            [data-testid="stHeader"] {
+                background: transparent;
+            }
+            
+            [data-testid="stSidebar"] {
+                display: none;
+            }
+            
+            /* Smooth scroll */
+            html {
+                scroll-behavior: smooth;
+            }
+            
+            /* Fixed Navigation Bar */
+            .navbar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 9999;
+                background: rgba(255, 255, 255, 0.98);
+                backdrop-filter: blur(10px);
+                padding: 1rem 0;
+                border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            }
+            
+            .navbar-container {
+                max-width: 1400px;
+                margin: 0 auto;
+                padding: 0 2rem;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .navbar-brand {
+                font-size: 1.8rem;
                 font-weight: 800;
-                background: linear-gradient(135deg, #ff69b4 0%, #ff1493 50%, #c71585 100%);
+                background: linear-gradient(135deg, #1e40af 0%, #0891b2 100%);
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
+                cursor: pointer;
+            }
+            
+            .navbar-menu {
+                display: flex;
+                gap: 2.5rem;
+                align-items: center;
+            }
+            
+            .nav-link {
+                color: #1e293b;
+                text-decoration: none;
+                font-weight: 500;
+                font-size: 0.95rem;
+                transition: all 0.3s;
+                cursor: pointer;
+                padding: 0.5rem 1rem;
+                border-radius: 8px;
+            }
+            
+            .nav-link:hover {
+                color: #3b82f6;
+                background: rgba(59, 130, 246, 0.1);
+            }
+            
+            /* Content padding for fixed navbar */
+            .main .block-container {
+                padding-top: 0 !important;
+                max-width: 100% !important;
+            }
+            
+            /* Hero Section */
+            .hero-section {
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                padding: 8rem 2rem 4rem;
+                margin-top: 70px;
+            }
+            
+            .hero-content {
+                max-width: 1400px;
+                width: 100%;
                 text-align: center;
+            }
+            
+            .hero-title {
+                font-size: 4.5rem;
+                font-weight: 800;
+                background: linear-gradient(135deg, #1e40af 0%, #0891b2 50%, #7c3aed 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin-bottom: 1.5rem;
+                line-height: 1.2;
+            }
+            
+            .hero-subtitle {
+                font-size: 1.5rem;
+                color: #64748b;
+                margin-bottom: 3rem;
+                font-weight: 400;
+            }
+            
+            /* Section */
+            .section {
+                padding: 6rem 2rem;
+                max-width: 1400px;
+                margin: 0 auto;
+            }
+            
+            .section-title {
+                font-size: 3rem;
+                font-weight: 800;
+                text-align: center;
+                background: linear-gradient(135deg, #1e40af 0%, #0891b2 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
                 margin-bottom: 1rem;
+            }
+            
+            .section-subtitle {
+                font-size: 1.2rem;
+                color: #64748b;
+                text-align: center;
+                margin-bottom: 4rem;
+            }
+            
+            /* Stats Grid */
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 2rem;
+                margin-top: 3rem;
+            }
+            
+            .stat-card {
+                background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+                padding: 2rem;
+                border-radius: 16px;
+                text-align: center;
+                border: 2px solid #3b82f6;
+            }
+            
+            .stat-number {
+                font-size: 3rem;
+                font-weight: 800;
+                color: #1e40af;
+                margin-bottom: 0.5rem;
+            }
+            
+            .stat-label {
+                font-size: 1rem;
+                color: #3b82f6;
+            }
+            
+            /* Features Grid */
+            .features-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 2rem;
+                margin-top: 3rem;
+            }
+            
+            .feature-card {
+                background: white;
+                padding: 2.5rem;
+                border-radius: 20px;
+                border: 2px solid rgba(59, 130, 246, 0.15);
+                transition: all 0.3s;
+                text-align: center;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+            }
+            
+            .feature-card:hover {
+                transform: translateY(-10px);
+                border-color: #3b82f6;
+                box-shadow: 0 20px 40px rgba(59, 130, 246, 0.2);
+            }
+            
+            .feature-icon {
+                font-size: 3rem;
+                margin-bottom: 1.5rem;
+            }
+            
+            .feature-title {
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: #1e293b;
+                margin-bottom: 1rem;
+            }
+            
+            .feature-text {
+                font-size: 1rem;
+                color: #64748b;
+                line-height: 1.6;
+            }
+            
+            /* Assessment Container */
+            .assessment-container {
+                background: white;
+                padding: 3rem;
+                border-radius: 24px;
+                border: 2px solid rgba(59, 130, 246, 0.2);
+                margin-top: 3rem;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            }
+            
+            .form-section-title {
+                font-size: 1.5rem;
+                font-weight: 700;
+                color: #3b82f6;
+                margin-bottom: 1.5rem;
+            }
+            
+            /* Results */
+            .results-hero {
+                background: white;
+                padding: 3rem;
+                border-radius: 24px;
+                border: 3px solid #3b82f6;
+                margin: 3rem 0;
+                text-align: center;
+                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+            }
+            
+            .risk-badge {
+                display: inline-block;
+                padding: 1rem 3rem;
+                border-radius: 50px;
+                font-size: 2.5rem;
+                font-weight: 800;
+                margin-bottom: 1.5rem;
+            }
+            
+            .risk-low {
+                background: linear-gradient(135deg, #059669 0%, #047857 100%);
+                color: white;
+            }
+            
+            .risk-moderate {
+                background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                color: white;
+            }
+            
+            .risk-high {
+                background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+                color: white;
+            }
+            
+            /* Footer */
+            .footer {
+                background: #f8fafc;
+                padding: 3rem 2rem;
+                text-align: center;
+                border-top: 1px solid rgba(59, 130, 246, 0.1);
+                margin-top: 4rem;
+            }
+            
+            .footer-text {
+                color: #64748b;
+                font-size: 0.95rem;
+                margin: 0.5rem 0;
+            }
+            
+            /* Streamlit Overrides */
+            .stButton>button {
+                width: 100%;
+                background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+                color: white;
+                padding: 1rem 2rem;
+                font-size: 1.1rem;
+                font-weight: 700;
+                border: none;
+                border-radius: 12px;
+                box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+                transition: all 0.3s ease;
+            }
+            
+            .stButton>button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 12px 32px rgba(59, 130, 246, 0.5);
+            }
+            
+            /* Form elements */
+            .stSlider {
                 padding: 1rem 0;
             }
-            .section-header {
-                color: #ff1493;
-                font-size: 1.8rem;
-                font-weight: 700;
-                margin-top: 2rem;
-                margin-bottom: 1rem;
-                border-bottom: 3px solid #ff69b4;
-                padding-bottom: 0.5rem;
+            
+            .stSelectbox {
+                padding: 0.5rem 0;
             }
-            .info-card {
-                background: linear-gradient(135deg, rgba(255,105,180,0.1) 0%, rgba(255,20,147,0.1) 100%);
-                padding: 1.5rem;
-                border-radius: 15px;
-                border: 2px solid rgba(255,105,180,0.3);
-                margin: 1rem 0;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            
+            .stRadio {
+                padding: 0.5rem 0;
             }
-            .metric-card {
-                background: linear-gradient(135deg, #fff5f8 0%, #ffe0ec 100%);
-                padding: 1.5rem;
-                border-radius: 12px;
-                border: 2px solid #ff69b4;
-                text-align: center;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            
+            /* Text colors - Light Theme */
+            .main h1, .main h2, .main h3, .main h4 {
+                color: #1e293b !important;
             }
-            .risk-high {
-                background: linear-gradient(135deg, #ff1744 0%, #d50000 100%);
-                color: white;
-                padding: 2rem;
-                border-radius: 20px;
-                text-align: center;
-                box-shadow: 0 8px 16px rgba(255,23,68,0.3);
-                margin: 2rem 0;
+            
+            .main p, .main span, .main div {
+                color: #1e293b !important;
             }
-            .risk-low {
-                background: linear-gradient(135deg, #00e676 0%, #00c853 100%);
-                color: white;
-                padding: 2rem;
-                border-radius: 20px;
-                text-align: center;
-                box-shadow: 0 8px 16px rgba(0,230,118,0.3);
-                margin: 2rem 0;
+            
+            .main label {
+                color: #475569 !important;
             }
-            .risk-moderate {
-                background: linear-gradient(135deg, #ffc400 0%, #ff9100 100%);
-                color: white;
-                padding: 2rem;
-                border-radius: 20px;
-                text-align: center;
-                box-shadow: 0 8px 16px rgba(255,196,0,0.3);
-                margin: 2rem 0;
+            
+            /* Metric styling */
+            [data-testid="stMetricValue"] {
+                color: #3b82f6 !important;
+                font-size: 2rem !important;
+                font-weight: 800 !important;
             }
-            .prevention-card {
-                background: linear-gradient(135deg, rgba(255,105,180,0.08) 0%, rgba(255,20,147,0.08) 100%);
-                padding: 1.5rem;
-                border-radius: 15px;
-                border-left: 5px solid #ff69b4;
-                margin: 1rem 0;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            
+            [data-testid="stMetricLabel"] {
+                color: #64748b !important;
             }
-            .warning-box {
-                background: linear-gradient(135deg, rgba(255,23,68,0.1) 0%, rgba(213,0,0,0.1) 100%);
-                padding: 1.5rem;
-                border-radius: 12px;
-                border-left: 5px solid #ff1744;
-                margin: 1.5rem 0;
+            
+            [data-testid="stMetricDelta"] {
+                color: #64748b !important;
             }
-            .stat-box {
-                background: #fff5f8;
-                padding: 1rem;
-                border-radius: 10px;
-                border: 1px solid #ff69b4;
-                margin: 0.5rem 0;
+            
+            /* Fix Streamlit elements in light theme */
+            .stMarkdown, .stMarkdown p {
+                color: #1e293b !important;
+            }
+            
+            /* Input labels */
+            label[data-testid="stWidgetLabel"] {
+                color: #475569 !important;
+                font-weight: 500 !important;
+            }
+            
+            /* Info box text */
+            .stAlert p {
+                color: #1e293b !important;
             }
         </style>
         """
 
+# Apply theme CSS
 st.markdown(get_theme_css(st.session_state.theme), unsafe_allow_html=True)
 
 # ============================================================================
@@ -226,22 +765,27 @@ def load_model_and_scaler():
             model = pickle.load(f)
         with open("model/scaler.pkl", "rb") as f:
             scaler = pickle.load(f)
-        return model, scaler, None
+        try:
+            with open("model/training_report.json", "r") as f:
+                report = json.load(f)
+        except:
+            report = None
+        return model, scaler, report, None
     except Exception as e:
-        return None, None, str(e)
+        return None, None, None, str(e)
 
-model, scaler, error = load_model_and_scaler()
+model, scaler, training_report, error = load_model_and_scaler()
 
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 def get_bmi_category(bmi):
     if bmi < 18.5:
-        return "Underweight", "🔵", "Consider gaining weight healthily"
+        return "Underweight", "🔵", "Consider gaining weight"
     elif 18.5 <= bmi < 25:
-        return "Normal", "🟢", "Maintain your current weight"
+        return "Normal", "🟢", "Maintain current weight"
     elif 25 <= bmi < 30:
-        return "Overweight", "🟡", "Consider weight management"
+        return "Overweight", "🟡", "Weight management advised"
     else:
         return "Obese", "🔴", "Weight loss recommended"
 
@@ -251,784 +795,590 @@ def get_bp_category(systolic, diastolic):
     elif 120 <= systolic < 130 and diastolic < 80:
         return "Elevated", "🟡"
     elif 130 <= systolic < 140 or 80 <= diastolic < 90:
-        return "High BP Stage 1", "🟠"
-    elif systolic >= 140 or diastolic >= 90:
-        return "High BP Stage 2", "🔴"
+        return "Stage 1 High BP", "🟠"
     else:
-        return "Normal", "🟢"
+        return "Stage 2 High BP", "🔴"
 
 def get_risk_level(probability):
     if probability < 0.3:
-        return "LOW", "low", "🟢", "#00e676"
+        return "LOW RISK", "low", "🟢"
     elif probability < 0.7:
-        return "MODERATE", "moderate", "🟡", "#ffc400"
+        return "MODERATE RISK", "moderate", "🟡"
     else:
-        return "HIGH", "high", "🔴", "#ff1744"
+        return "HIGH RISK", "high", "🔴"
 
-def get_prevention_tips(risk_level, bmi, bp_category, cholesterol, glucose, smoke, alco, active):
-    tips = []
+def create_gauge_chart(probability, theme):
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = probability * 100,
+        domain = {'x': [0, 1], 'y': [0, 1]},
+        title = {'text': "Risk Probability (%)", 'font': {'size': 20, 'color': '#e2e8f0' if theme == 'dark' else '#1e293b'}},
+        gauge = {
+            'axis': {'range': [None, 100], 'tickwidth': 2},
+            'bar': {'color': "#3b82f6"},
+            'bgcolor': "white",
+            'borderwidth': 2,
+            'bordercolor': "#cbd5e1",
+            'steps': [
+                {'range': [0, 30], 'color': '#d1fae5'},
+                {'range': [30, 70], 'color': '#fef3c7'},
+                {'range': [70, 100], 'color': '#fee2e2'}
+            ],
+            'threshold': {
+                'line': {'color': "red", 'width': 4},
+                'thickness': 0.75,
+                'value': 70
+            }
+        }
+    ))
     
-    # General tips
-    tips.append({
-        "icon": "🏥",
-        "title": "Regular Check-ups",
-        "description": "Schedule annual health screenings and monitor your cardiovascular health regularly."
-    })
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font={'color': '#e2e8f0' if theme == 'dark' else '#1e293b'},
+        height=350,
+        margin=dict(l=20, r=20, t=50, b=20)
+    )
     
-    # Risk-specific tips
-    if risk_level == "high":
-        tips.append({
-            "icon": "⚠️",
-            "title": "Immediate Medical Consultation",
-            "description": "Consult a cardiologist immediately for comprehensive evaluation and personalized treatment plan."
-        })
-    
-    # BMI-based tips
-    if bmi >= 25:
-        tips.append({
-            "icon": "🏃",
-            "title": "Weight Management",
-            "description": "Aim for gradual weight loss through balanced diet and regular exercise (150 min/week of moderate activity)."
-        })
-    
-    # BP-based tips
-    if "High" in bp_category:
-        tips.append({
-            "icon": "🧂",
-            "title": "Blood Pressure Control",
-            "description": "Reduce sodium intake (<2,300mg/day), practice stress management, and consider DASH diet."
-        })
-    
-    # Cholesterol tips
-    if cholesterol > 0:
-        tips.append({
-            "icon": "🥗",
-            "title": "Cholesterol Management",
-            "description": "Adopt heart-healthy diet rich in omega-3, fiber, and limit saturated fats. Consider statins if prescribed."
-        })
-    
-    # Glucose tips
-    if glucose > 0:
-        tips.append({
-            "icon": "🍎",
-            "title": "Blood Sugar Control",
-            "description": "Monitor glucose levels, reduce refined carbs, increase fiber intake, and maintain healthy weight."
-        })
-    
-    # Smoking tips
-    if smoke == 1:
-        tips.append({
-            "icon": "🚭",
-            "title": "Smoking Cessation - CRITICAL",
-            "description": "Quitting smoking is the single most important step. Seek support through counseling or nicotine replacement therapy."
-        })
-    
-    # Alcohol tips
-    if alco == 1:
-        tips.append({
-            "icon": "🚫",
-            "title": "Limit Alcohol Consumption",
-            "description": "Reduce alcohol intake to moderate levels (≤1 drink/day for women, ≤2 for men) or eliminate completely."
-        })
-    
-    # Physical activity tips
-    if active == 0:
-        tips.append({
-            "icon": "💪",
-            "title": "Increase Physical Activity",
-            "description": "Start with 30 minutes of moderate exercise 5 days/week. Include cardio, strength training, and flexibility exercises."
-        })
-    
-    # Additional universal tips
-    tips.append({
-        "icon": "😌",
-        "title": "Stress Management",
-        "description": "Practice relaxation techniques like meditation, yoga, or deep breathing. Ensure 7-9 hours of quality sleep."
-    })
-    
-    tips.append({
-        "icon": "🥦",
-        "title": "Heart-Healthy Diet",
-        "description": "Focus on fruits, vegetables, whole grains, lean proteins, and healthy fats. Limit processed foods and added sugars."
-    })
-    
-    return tips
+    return fig
 
 # ============================================================================
-# HEADER WITH THEME TOGGLE
+# NAVIGATION BAR
 # ============================================================================
-col1, col2, col3 = st.columns([1, 6, 1])
-with col3:
-    theme_icon = "🌙" if st.session_state.theme == 'light' else "☀️"
-    if st.button(theme_icon, help="Toggle theme"):
+theme_icon = "🌙" if st.session_state.theme == 'light' else "☀️"
+theme_text = "Dark" if st.session_state.theme == 'light' else "Light"
+
+# Create columns for theme toggle button in top-right
+col_empty, col_theme = st.columns([9, 1])
+with col_theme:
+    if st.button(f"{theme_icon}", key="theme_btn", help=f"Switch to {theme_text} Mode"):
         toggle_theme()
         st.rerun()
 
-st.markdown('<h1 class="main-header">🫀 Cardiovascular Disease Risk Predictor</h1>', unsafe_allow_html=True)
-st.markdown(
-    "<p style='text-align: center; font-size: 1.2rem; color: #888; margin-bottom: 2rem;'>"
-    "Advanced AI-powered cardiovascular risk assessment with personalized recommendations"
-    "</p>",
-    unsafe_allow_html=True
-)
+st.markdown(f"""
+<div class="navbar">
+    <div class="navbar-container">
+        <div class="navbar-brand">❤️ CardioGuard AI</div>
+        <div class="navbar-menu">
+            <span class="nav-link">Home</span>
+            <span class="nav-link">Features</span>
+            <span class="nav-link">Assessment</span>
+            <span class="nav-link">About</span>
+            <span class="nav-link">Stats</span>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # ============================================================================
-# NAVIGATION TABS
+# HERO SECTION
 # ============================================================================
-tab1, tab2, tab3, tab4 = st.tabs(["🔍 Risk Assessment", "📊 About Model", "ℹ️ About Website", "⚠️ Disclaimer"])
+st.markdown("""
+<div id="home" class="hero-section">
+<div class="hero-content">
+<h1 class="hero-title">CardioGuard AI</h1>
+<p class="hero-subtitle">Advanced AI-Powered Cardiovascular Disease Risk Assessment</p>
+<div class="stats-grid">
+<div class="stat-card">
+<div class="stat-number">73%</div>
+<div class="stat-label">Accuracy</div>
+</div>
+<div class="stat-card">
+<div class="stat-number">0.82</div>
+<div class="stat-label">ROC-AUC Score</div>
+</div>
+<div class="stat-card">
+<div class="stat-number">70K+</div>
+<div class="stat-label">Training Samples</div>
+</div>
+<div class="stat-card">
+<div class="stat-number">&lt;1ms</div>
+<div class="stat-label">Prediction Time</div>
+</div>
+</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
 
 # ============================================================================
-# TAB 1: RISK ASSESSMENT
+# FEATURES SECTION
 # ============================================================================
-with tab1:
-    if error:
-        st.error(f"❌ Error loading model: {error}")
-        st.stop()
-    
-    # Sidebar Information
-    with st.sidebar:
-        st.markdown("### 📋 Input Parameters")
-        st.info("""
-        **Required Information:**
-        - Personal demographics
-        - Physical measurements
-        - Health metrics
-        - Lifestyle factors
-        """)
+st.markdown("""
+<div id="features" class="section">
+<h2 class="section-title">Why Choose CardioGuard AI?</h2>
+<p class="section-subtitle">Powered by advanced machine learning algorithms for accurate health predictions</p>
+
+<div class="features-grid">
+<div class="feature-card">
+<div class="feature-icon">🤖</div>
+<h3 class="feature-title">AI-Powered Analysis</h3>
+<p class="feature-text">Sophisticated machine learning model trained on 70,000+ medical records for accurate predictions</p>
+</div>
+
+<div class="feature-card">
+<div class="feature-icon">⚡</div>
+<h3 class="feature-title">Instant Results</h3>
+<p class="feature-text">Get comprehensive cardiovascular risk assessment in less than a second</p>
+</div>
+
+<div class="feature-card">
+<div class="feature-icon">📊</div>
+<h3 class="feature-title">Detailed Analytics</h3>
+<p class="feature-text">Interactive charts and comprehensive health metrics dashboard</p>
+</div>
+
+<div class="feature-card">
+<div class="feature-icon">🔒</div>
+<h3 class="feature-title">Privacy First</h3>
+<p class="feature-text">All data processed locally. No storage, no tracking, complete privacy</p>
+</div>
+
+<div class="feature-card">
+<div class="feature-icon">💡</div>
+<h3 class="feature-title">Personalized Insights</h3>
+<p class="feature-text">Get tailored health recommendations based on your unique profile</p>
+</div>
+
+<div class="feature-card">
+<div class="feature-icon">📥</div>
+<h3 class="feature-title">Export Reports</h3>
+<p class="feature-text">Download detailed health reports to share with your healthcare provider</p>
+</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
+
+# ============================================================================
+# ASSESSMENT SECTION
+# ============================================================================
+st.markdown('<div id="assessment" class="section">', unsafe_allow_html=True)
+st.markdown('<h2 class="section-title">Health Risk Assessment</h2>', unsafe_allow_html=True)
+st.markdown('<p class="section-subtitle">Complete the form below for a comprehensive cardiovascular risk evaluation</p>', unsafe_allow_html=True)
+
+if error:
+    st.error(f"❌ Error loading model: {error}")
+else:
+    # Create a container for the assessment form
+    with st.container():
+        st.markdown('<div class="assessment-container">', unsafe_allow_html=True)
         
-        st.markdown("### 🎯 Risk Categories")
-        st.success("🟢 **Low Risk**: <30% probability")
-        st.warning("🟡 **Moderate Risk**: 30-70% probability")
-        st.error("🔴 **High Risk**: >70% probability")
+        # Personal Information
+        st.markdown('<h3 class="form-section-title">👤 Personal Information</h3>', unsafe_allow_html=True)
         
-        st.markdown("### 📞 Emergency")
-        st.error("""
-        **Call emergency services if:**
-        - Chest pain/pressure
-        - Shortness of breath
-        - Sudden dizziness
-        - Arm/jaw pain
-        """)
-    
-    # Input Form
-    st.markdown('<h2 class="section-header">📝 Patient Information</h2>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("#### 👤 Demographics")
-        age_years = st.slider("Age (years)", 18, 100, 45, help="Patient's age in years")
-        gender = st.selectbox("Gender", ["Female", "Male"], help="Biological sex")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            age_years = st.slider("Age (years)", 18, 100, 45, key="age")
+        with col2:
+            gender = st.selectbox("Gender", ["Female", "Male"], key="gender")
+        with col3:
+            height = st.slider("Height (cm)", 120, 220, 165, key="height")
         
-        st.markdown("#### 📏 Physical Measurements")
-        height = st.slider("Height (cm)", 120, 220, 165, help="Height in centimeters")
-        weight = st.slider("Weight (kg)", 30, 200, 70, help="Weight in kilograms")
-    
-    with col2:
-        st.markdown("#### 🩺 Blood Pressure")
-        ap_hi = st.slider("Systolic BP (mmHg)", 80, 250, 120, help="Upper blood pressure reading")
-        ap_lo = st.slider("Diastolic BP (mmHg)", 40, 150, 80, help="Lower blood pressure reading")
+        col1, col2 = st.columns(2)
+        with col1:
+            weight = st.slider("Weight (kg)", 30, 200, 70, key="weight")
+        with col2:
+            BMI = weight / ((height / 100) ** 2)
+            bmi_cat, bmi_emoji, bmi_advice = get_bmi_category(BMI)
+            st.metric("Body Mass Index (BMI)", f"{BMI:.1f}", f"{bmi_emoji} {bmi_cat}")
         
-        st.markdown("#### 🧪 Lab Results")
-        cholesterol = st.selectbox(
-            "Cholesterol Level",
-            ["Normal", "Above Normal", "Well Above Normal"],
-            help="Cholesterol test results"
-        )
-        gluc = st.selectbox(
-            "Glucose Level",
-            ["Normal", "Above Normal", "Well Above Normal"],
-            help="Blood glucose test results"
-        )
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Health Metrics
+        st.markdown('<h3 class="form-section-title">🩺 Health Metrics</h3>', unsafe_allow_html=True)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            ap_hi = st.slider("Systolic Blood Pressure (mmHg)", 80, 250, 120, key="systolic")
+            ap_lo = st.slider("Diastolic Blood Pressure (mmHg)", 40, 150, 80, key="diastolic")
+            bp_cat, bp_emoji = get_bp_category(ap_hi, ap_lo)
+            st.info(f"{bp_emoji} Blood Pressure Status: **{bp_cat}**")
+        
+        with col2:
+            cholesterol = st.selectbox(
+                "Cholesterol Level",
+                ["Normal", "Above Normal", "Well Above Normal"],
+                key="cholesterol"
+            )
+            gluc = st.selectbox(
+                "Glucose Level",
+                ["Normal", "Above Normal", "Well Above Normal"],
+                key="glucose"
+            )
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Lifestyle Factors
+        st.markdown('<h3 class="form-section-title">🏃 Lifestyle Factors</h3>', unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            smoke = st.radio("Smoking", ["Non-smoker", "Smoker"], key="smoke")
+        with col2:
+            alco = st.radio("Alcohol Consumption", ["No", "Yes"], key="alcohol")
+        with col3:
+            active = st.radio("Physical Activity", ["No", "Yes"], key="activity")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Analyze Button
+        if st.button("🔬 Analyze Cardiovascular Risk", type="primary", key="analyze_btn"):
+            with st.spinner("🔄 Analyzing your health data..."):
+                # Encode features
+                gender_encoded = 1 if gender == "Male" else 0
+                cholesterol_encoded = ["Normal", "Above Normal", "Well Above Normal"].index(cholesterol)
+                gluc_encoded = ["Normal", "Above Normal", "Well Above Normal"].index(gluc)
+                smoke_encoded = 1 if smoke == "Smoker" else 0
+                alco_encoded = 1 if alco == "Yes" else 0
+                active_encoded = 1 if active == "Yes" else 0
+                
+                # Prepare features
+                numeric_features = np.array([[age_years, height, weight, ap_hi, ap_lo, BMI]])
+                numeric_scaled = scaler.transform(numeric_features)
+                categorical_features = np.array([[gender_encoded, cholesterol_encoded, gluc_encoded, 
+                                                smoke_encoded, alco_encoded, active_encoded]])
+                input_final = np.hstack((numeric_scaled, categorical_features))
+                
+                # Prediction
+                prob = model.predict_proba(input_final)[0]
+                pred = model.predict(input_final)[0]
+                
+                risk_text, risk_class, risk_emoji = get_risk_level(prob)
+                
+                st.session_state.show_results = True
+                st.session_state.prediction_data = {
+                    'prob': prob,
+                    'pred': pred,
+                    'risk_text': risk_text,
+                    'risk_class': risk_class,
+                    'risk_emoji': risk_emoji,
+                    'BMI': BMI,
+                    'bmi_cat': bmi_cat,
+                    'bmi_emoji': bmi_emoji,
+                    'ap_hi': ap_hi,
+                    'ap_lo': ap_lo,
+                    'bp_cat': bp_cat,
+                    'bp_emoji': bp_emoji,
+                    'cholesterol': cholesterol,
+                    'gluc': gluc,
+                    'age_years': age_years,
+                    'gender': gender,
+                    'height': height,
+                    'weight': weight,
+                    'smoke': smoke,
+                    'alco': alco,
+                    'active': active,
+                    'smoke_encoded': smoke_encoded,
+                    'alco_encoded': alco_encoded,
+                    'active_encoded': active_encoded
+                }
+                st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
     
-    st.markdown('<h2 class="section-header">🏃 Lifestyle Factors</h2>', unsafe_allow_html=True)
-    
-    lifestyle_col1, lifestyle_col2, lifestyle_col3 = st.columns(3)
-    
-    with lifestyle_col1:
-        smoke = st.radio("🚬 Smoking Status", ["Non-smoker", "Smoker"], horizontal=False)
-    with lifestyle_col2:
-        alco = st.radio("🍷 Alcohol Consumption", ["No", "Yes"], horizontal=False)
-    with lifestyle_col3:
-        active = st.radio("💪 Physically Active", ["No", "Yes"], horizontal=False)
-    
-    # Calculate BMI and display metrics
-    BMI = weight / ((height / 100) ** 2)
-    bmi_cat, bmi_emoji, bmi_advice = get_bmi_category(BMI)
-    bp_cat, bp_emoji = get_bp_category(ap_hi, ap_lo)
-    
-    st.markdown('<h2 class="section-header">📊 Current Health Metrics</h2>', unsafe_allow_html=True)
-    
-    metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-    
-    with metric_col1:
+    # ============================================================================
+    # RESULTS SECTION
+    # ============================================================================
+    if st.session_state.show_results:
+        data = st.session_state.prediction_data
+        
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.markdown('<h2 class="section-title">📋 Assessment Results</h2>', unsafe_allow_html=True)
+        
+        # Risk Badge
         st.markdown(f"""
-        <div class="metric-card">
-            <h4>BMI</h4>
-            <h2>{BMI:.1f}</h2>
-            <p>{bmi_emoji} {bmi_cat}</p>
+        <div class="results-hero">
+            <div class="risk-badge risk-{data['risk_class']}">
+                {data['risk_emoji']} {data['risk_text']}
+            </div>
+            <h2 style="font-size: 2rem; margin-bottom: 0.5rem;">Disease Probability: {data['prob']*100:.1f}%</h2>
+            <p style="font-size: 1.1rem; opacity: 0.8;">Based on comprehensive health metrics and lifestyle analysis</p>
         </div>
         """, unsafe_allow_html=True)
-    
-    with metric_col2:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h4>Blood Pressure</h4>
-            <h2>{ap_hi}/{ap_lo}</h2>
-            <p>{bp_emoji} {bp_cat}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with metric_col3:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h4>Cholesterol</h4>
-            <h2>{cholesterol}</h2>
-            <p>{"🟢" if cholesterol == "Normal" else "🔴"}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with metric_col4:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h4>Glucose</h4>
-            <h2>{gluc}</h2>
-            <p>{"🟢" if gluc == "Normal" else "🔴"}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Predict Button
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    if st.button("🔬 Analyze Cardiovascular Risk", type="primary", use_container_width=True):
-        with st.spinner("🔄 Processing data and analyzing risk factors..."):
-            # Encode categorical variables
-            gender_encoded = 1 if gender == "Male" else 0
-            cholesterol_encoded = ["Normal", "Above Normal", "Well Above Normal"].index(cholesterol)
-            gluc_encoded = ["Normal", "Above Normal", "Well Above Normal"].index(gluc)
-            smoke_encoded = 1 if smoke == "Smoker" else 0
-            alco_encoded = 1 if alco == "Yes" else 0
-            active_encoded = 1 if active == "Yes" else 0
-            
-            # Prepare features
-            numeric_features = np.array([[age_years, height, weight, ap_hi, ap_lo, BMI]])
-            numeric_scaled = scaler.transform(numeric_features)
-            categorical_features = np.array([[gender_encoded, cholesterol_encoded, gluc_encoded, 
-                                            smoke_encoded, alco_encoded, active_encoded]])
-            input_final = np.hstack((numeric_scaled, categorical_features))
-            
-            # Prediction
-            prob = model.predict_proba(input_final)[0][1]  # Probability of disease
-            pred = model.predict(input_final)[0]
-            
-            risk_text, risk_class, risk_emoji, risk_color = get_risk_level(prob)
         
-        # Display Results
-        st.markdown('<h2 class="section-header">🎯 Risk Assessment Results</h2>', unsafe_allow_html=True)
+        # Gauge Chart
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            gauge_fig = create_gauge_chart(data['prob'], st.session_state.theme)
+            st.plotly_chart(gauge_fig, use_container_width=True)
         
-        # Main Risk Card
-        st.markdown(f"""
-        <div class="risk-{risk_class}">
-            <h1>{risk_emoji} {risk_text} RISK</h1>
-            <h2>Cardiovascular Disease Probability: {prob*100:.1f}%</h2>
-            <p style="font-size: 1.1rem; margin-top: 1rem;">
-                Based on the provided health metrics and lifestyle factors
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Health Metrics Dashboard
+        st.markdown('<h3 class="section-title" style="font-size: 2rem; margin-top: 3rem;">📊 Your Health Dashboard</h3>', unsafe_allow_html=True)
         
-        # Detailed Analysis
-        st.markdown('<h3 class="section-header">📈 Detailed Risk Analysis</h3>', unsafe_allow_html=True)
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("BMI", f"{data['BMI']:.1f}", f"{data['bmi_emoji']} {data['bmi_cat']}")
+        
+        with col2:
+            st.metric("Blood Pressure", f"{data['ap_hi']}/{data['ap_lo']}", f"{data['bp_emoji']} {data['bp_cat']}")
+        
+        with col3:
+            chol_emoji = "🟢" if data['cholesterol'] == "Normal" else "🔴"
+            st.metric("Cholesterol", chol_emoji, data['cholesterol'])
+        
+        with col4:
+            gluc_emoji = "🟢" if data['gluc'] == "Normal" else "🔴"
+            st.metric("Glucose", gluc_emoji, data['gluc'])
+        
+        # Risk Factors & Recommendations
+        st.markdown('<h3 class="section-title" style="font-size: 2rem; margin-top: 3rem;">⚠️ Risk Analysis</h3>', unsafe_allow_html=True)
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown('<div class="info-card">', unsafe_allow_html=True)
-            st.markdown("#### 🎲 Probability Breakdown")
-            st.progress(prob)
-            st.markdown(f"""
-            - **Disease Probability**: {prob*100:.1f}%
-            - **Healthy Probability**: {(1-prob)*100:.1f}%
-            - **Risk Category**: {risk_text}
-            """)
-            st.markdown('</div>', unsafe_allow_html=True)
+            with st.container():
+                st.markdown('<div class="assessment-container">', unsafe_allow_html=True)
+                st.markdown("#### 🎯 Identified Risk Factors")
+                
+                risk_factors = []
+                if data['BMI'] >= 25:
+                    risk_factors.append(f"• **High BMI**: {data['BMI']:.1f} (Target: <25)")
+                if "High" in data['bp_cat']:
+                    risk_factors.append(f"• **{data['bp_cat']}**: {data['ap_hi']}/{data['ap_lo']} mmHg")
+                if data['cholesterol'] != "Normal":
+                    risk_factors.append(f"• **{data['cholesterol']} Cholesterol**")
+                if data['gluc'] != "Normal":
+                    risk_factors.append(f"• **{data['gluc']} Glucose**")
+                if data['smoke_encoded'] == 1:
+                    risk_factors.append("• **Smoking** - Major cardiovascular risk")
+                if data['alco_encoded'] == 1:
+                    risk_factors.append("• **Alcohol consumption**")
+                if data['active_encoded'] == 0:
+                    risk_factors.append("• **Physical inactivity**")
+                if data['age_years'] > 55:
+                    risk_factors.append(f"• **Age factor**: {data['age_years']} years")
+                
+                if risk_factors:
+                    for factor in risk_factors:
+                        st.markdown(factor)
+                else:
+                    st.success("✅ No major risk factors identified")
+                
+                st.markdown('</div>', unsafe_allow_html=True)
         
         with col2:
-            st.markdown('<div class="info-card">', unsafe_allow_html=True)
-            st.markdown("#### ⚠️ Key Risk Factors Identified")
-            risk_factors = []
-            
-            if BMI >= 25:
-                risk_factors.append(f"• High BMI ({BMI:.1f})")
-            if "High" in bp_cat:
-                risk_factors.append(f"• {bp_cat}")
-            if cholesterol != "Normal":
-                risk_factors.append(f"• {cholesterol} Cholesterol")
-            if gluc != "Normal":
-                risk_factors.append(f"• {gluc} Glucose")
-            if smoke_encoded == 1:
-                risk_factors.append("• Smoking")
-            if alco_encoded == 1:
-                risk_factors.append("• Alcohol consumption")
-            if active_encoded == 0:
-                risk_factors.append("• Physical inactivity")
-            
-            if risk_factors:
-                for factor in risk_factors:
-                    st.markdown(factor)
-            else:
-                st.markdown("✅ No major risk factors identified")
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Prevention Tips
-        st.markdown('<h3 class="section-header">💡 Personalized Prevention & Management Tips</h3>', unsafe_allow_html=True)
-        
-        prevention_tips = get_prevention_tips(
-            risk_class, BMI, bp_cat, cholesterol_encoded, gluc_encoded,
-            smoke_encoded, alco_encoded, active_encoded
-        )
-        
-        cols = st.columns(2)
-        for idx, tip in enumerate(prevention_tips):
-            with cols[idx % 2]:
-                st.markdown(f"""
-                <div class="prevention-card">
-                    <h4>{tip['icon']} {tip['title']}</h4>
-                    <p>{tip['description']}</p>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # Warning Box
-        st.markdown("""
-        <div class="warning-box">
-            <h4>⚠️ Important Medical Disclaimer</h4>
-            <p>
-                This prediction is based on statistical models and should NOT replace professional medical advice.
-                Please consult with a qualified healthcare provider for proper diagnosis and treatment.
-                If you experience symptoms like chest pain, shortness of breath, or severe discomfort,
-                <strong>seek immediate medical attention</strong>.
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+            with st.container():
+                st.markdown('<div class="assessment-container">', unsafe_allow_html=True)
+                st.markdown("#### 💡 Personalized Recommendations")
+                
+                if data['risk_class'] == "high":
+                    st.error("🏥 **Immediate Action Required**")
+                    st.markdown("• Schedule cardiologist appointment")
+                    st.markdown("• Get comprehensive cardiac evaluation")
+                    st.markdown("• Consider cardiac screening tests")
+                elif data['risk_class'] == "moderate":
+                    st.warning("⚠️ **Preventive Action Needed**")
+                    st.markdown("• Regular health monitoring")
+                    st.markdown("• Implement lifestyle modifications")
+                    st.markdown("• Consult healthcare provider")
+                else:
+                    st.success("✅ **Maintain Healthy Habits**")
+                    st.markdown("• Continue current lifestyle")
+                    st.markdown("• Annual health check-ups")
+                    st.markdown("• Stay physically active")
+                
+                if data['smoke_encoded'] == 1:
+                    st.markdown("• **🚭 Quit smoking immediately**")
+                if data['BMI'] >= 25:
+                    st.markdown("• **🏃 Start weight management program**")
+                if "High" in data['bp_cat']:
+                    st.markdown("• **🧂 Reduce sodium intake**")
+                    st.markdown("• **💊 Monitor blood pressure daily**")
+                
+                st.markdown('</div>', unsafe_allow_html=True)
         
         # Download Report
+        st.markdown("<br>", unsafe_allow_html=True)
+        
         report_data = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "patient_info": {
-                "age": age_years,
-                "gender": gender,
-                "height_cm": height,
-                "weight_kg": weight,
-                "bmi": round(BMI, 2)
+                "age": data['age_years'],
+                "gender": data['gender'],
+                "height_cm": data['height'],
+                "weight_kg": data['weight'],
+                "bmi": round(data['BMI'], 2)
             },
             "health_metrics": {
-                "systolic_bp": ap_hi,
-                "diastolic_bp": ap_lo,
-                "bp_category": bp_cat,
-                "cholesterol": cholesterol,
-                "glucose": gluc
+                "systolic_bp": data['ap_hi'],
+                "diastolic_bp": data['ap_lo'],
+                "bp_category": data['bp_cat'],
+                "cholesterol": data['cholesterol'],
+                "glucose": data['gluc']
             },
             "lifestyle": {
-                "smoking": smoke,
-                "alcohol": alco,
-                "physical_activity": active
+                "smoking": data['smoke'],
+                "alcohol": data['alco'],
+                "physical_activity": data['active']
             },
             "results": {
-                "risk_level": risk_text,
-                "disease_probability": round(prob * 100, 2),
-                "prediction": "Positive" if pred == 1 else "Negative"
-            }
+                "risk_level": data['risk_text'],
+                "disease_probability": round(data['prob'] * 100, 2),
+                "prediction": "Positive" if data['pred'] == 1 else "Negative"
+            },
+            "risk_factors": risk_factors if risk_factors else ["None identified"]
         }
         
-        st.download_button(
-            label="📥 Download Detailed Report (JSON)",
-            data=json.dumps(report_data, indent=2),
-            file_name=f"cardio_risk_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            mime="application/json"
-        )
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.download_button(
+                label="📥 Download Detailed Health Report (JSON)",
+                data=json.dumps(report_data, indent=2),
+                file_name=f"cardio_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json",
+                use_container_width=True
+            )
+
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ============================================================================
-# TAB 2: ABOUT MODEL
+# ABOUT SECTION
 # ============================================================================
-with tab2:
-    st.markdown('<h2 class="section-header">🤖 Machine Learning Model Information</h2>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("""
-    ### 📊 Model Architecture
-    
-    **Algorithm**: Logistic Regression (Built from Scratch)
-    
-    **Type**: Binary Classification Model
-    
-    **Purpose**: Predict the presence or absence of cardiovascular disease based on patient health metrics and lifestyle factors.
-    
-    #### 🔧 Technical Specifications
-    
-    - **Learning Rate**: 0.005
-    - **Iterations**: 3,000
-    - **Optimization**: Gradient Descent
-    - **Implementation**: Custom implementation without external ML libraries
-    - **Regularization**: None (standard logistic regression)
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown('<div class="info-card">', unsafe_allow_html=True)
-        st.markdown("""
-        ### 📥 Input Features (12 total)
-        
-        #### Numerical Features (6):
-        1. **Age** - Patient age in years
-        2. **Height** - Height in centimeters
-        3. **Weight** - Weight in kilograms
-        4. **Systolic BP** - Upper blood pressure
-        5. **Diastolic BP** - Lower blood pressure
-        6. **BMI** - Body Mass Index (calculated)
-        
-        #### Categorical Features (6):
-        7. **Gender** - Male/Female (binary)
-        8. **Cholesterol** - Normal/Above/Well Above (0/1/2)
-        9. **Glucose** - Normal/Above/Well Above (0/1/2)
-        10. **Smoking** - Yes/No (binary)
-        11. **Alcohol** - Yes/No (binary)
-        12. **Physical Activity** - Yes/No (binary)
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown('<div class="info-card">', unsafe_allow_html=True)
-        st.markdown("""
-        ### 📤 Model Output
-        
-        **Binary Classification**:
-        - **0**: No cardiovascular disease
-        - **1**: Cardiovascular disease present
-        
-        **Probability Score**:
-        - Range: 0.0 to 1.0
-        - Represents likelihood of disease
-        - Used for risk stratification
-        
-        **Risk Categories**:
-        - 🟢 **Low**: <30% probability
-        - 🟡 **Moderate**: 30-70% probability
-        - 🔴 **High**: >70% probability
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("""
-    ### 📊 Model Performance Metrics
-    
-    *Note: Run the enhanced train.py to generate detailed performance metrics*
-    
-    **Key Metrics to Monitor**:
-    - **Accuracy**: Overall correct predictions
-    - **Precision**: True positive rate among positive predictions
-    - **Recall (Sensitivity)**: True positive detection rate
-    - **F1-Score**: Harmonic mean of precision and recall
-    - **ROC-AUC**: Model's discrimination capability
-    
-    **Model Validation**:
-    - Training/Test split with proper stratification
-    - Cross-validation for robust performance estimation
-    - Overfitting/Underfitting analysis through train vs test metrics
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("""
-    ### 🔄 Data Preprocessing
-    
-    **Feature Scaling**:
-    - Numerical features normalized using StandardScaler
-    - Ensures all features contribute equally to predictions
-    - Prevents features with larger ranges from dominating
-    
-    **Categorical Encoding**:
-    - Binary features: 0/1 encoding
-    - Ordinal features (cholesterol, glucose): 0/1/2 encoding
-    - Gender: Male=1, Female=0
-    
-    **Feature Engineering**:
-    - BMI calculated from height and weight
-    - All features validated for medical plausibility
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
+st.markdown("""
+<div id="about" class="section">
+<h2 class="section-title">About CardioGuard AI</h2>
+<p class="section-subtitle">Advanced machine learning for cardiovascular health assessment</p>
+
+<div class="features-grid">
+<div class="feature-card">
+<div class="feature-icon">🧠</div>
+<h3 class="feature-title">Machine Learning Model</h3>
+<p class="feature-text">Custom-built Logistic Regression algorithm trained from scratch on 70,000+ medical records with 12 key health features</p>
+</div>
+
+<div class="feature-card">
+<div class="feature-icon">🎯</div>
+<h3 class="feature-title">High Accuracy</h3>
+<p class="feature-text">73% accuracy with 0.82 ROC-AUC score, providing reliable cardiovascular risk predictions</p>
+</div>
+
+<div class="feature-card">
+<div class="feature-icon">🔬</div>
+<h3 class="feature-title">Evidence-Based</h3>
+<p class="feature-text">Built on clinical research data including age, BMI, blood pressure, cholesterol, glucose, and lifestyle factors</p>
+</div>
+
+<div class="feature-card">
+<div class="feature-icon">🌐</div>
+<h3 class="feature-title">Accessible Anywhere</h3>
+<p class="feature-text">Web-based platform accessible 24/7 from any device with internet connection</p>
+</div>
+
+<div class="feature-card">
+<div class="feature-icon">📚</div>
+<h3 class="feature-title">Educational Resource</h3>
+<p class="feature-text">Perfect for medical students, researchers, and healthcare professionals learning ML in healthcare</p>
+</div>
+
+<div class="feature-card">
+<div class="feature-icon">⚡</div>
+<h3 class="feature-title">Real-Time Processing</h3>
+<p class="feature-text">Instant analysis with prediction time under 1 millisecond for immediate results</p>
+</div>
+</div>
+
+<div class="assessment-container" style="margin-top: 4rem;">
+<h3 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">⚠️ Important Medical Disclaimer</h3>
+<div style="background: rgba(239, 68, 68, 0.1); padding: 2rem; border-radius: 16px; border-left: 6px solid #ef4444;">
+<p style="font-size: 1.1rem; line-height: 1.8; margin-bottom: 1rem;">
+    <strong>CardioGuard AI is a research and educational tool only.</strong> It is NOT FDA approved, clinically validated, 
+    or suitable for medical diagnosis or treatment decisions. This tool cannot replace professional medical evaluation, 
+    diagnostic tests (ECG, echocardiogram, blood work), or consultations with qualified healthcare providers.
+</p>
+<p style="font-size: 1.1rem; line-height: 1.8; margin-bottom: 1rem;">
+    <strong>🚨 Emergency Warning:</strong> If you experience chest pain, severe shortness of breath, 
+    arm/jaw pain, or other cardiac symptoms, call 911 or your local emergency services immediately. 
+    Do not rely on this application for emergency medical decisions.
+</p>
+<p style="font-size: 1.1rem; line-height: 1.8;">
+    Always consult with qualified healthcare professionals for medical advice, diagnosis, and treatment. 
+    Use this tool at your own risk. The developers assume no liability for health outcomes.
+</p>
+</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
 
 # ============================================================================
-# TAB 3: ABOUT WEBSITE
+# STATS SECTION
 # ============================================================================
-with tab3:
-    st.markdown('<h2 class="section-header">ℹ️ About This Application</h2>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("""
-    ### 🎯 Purpose & Mission
-    
-    The **Cardiovascular Disease Risk Predictor** is an AI-powered web application designed to provide
-    preliminary cardiovascular risk assessment based on patient health metrics and lifestyle factors.
-    
-    **Our Mission**:
-    - Raise awareness about cardiovascular disease risk factors
-    - Provide accessible preliminary health screening
-    - Encourage proactive health management
-    - Bridge the gap between individuals and healthcare providers
-    
-    **Target Audience**:
-    - Individuals concerned about heart health
-    - Healthcare professionals for preliminary screening
-    - Medical students and researchers
-    - Health-conscious individuals seeking self-assessment
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown('<div class="info-card">', unsafe_allow_html=True)
-        st.markdown("""
-        ### ✨ Key Features
-        
-        - **🎨 Theme Toggle**: Light/Dark mode for comfortable viewing
-        - **📊 Real-time Risk Assessment**: Instant predictions
-        - **💡 Personalized Recommendations**: Tailored prevention tips
-        - **📈 Health Metrics Dashboard**: Visual health indicators
-        - **📥 Report Export**: Download detailed JSON reports
-        - **🔒 Privacy First**: No data storage or tracking
-        - **📱 Responsive Design**: Works on all devices
-        - **♿ Accessible**: User-friendly interface for all
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown('<div class="info-card">', unsafe_allow_html=True)
-        st.markdown("""
-        ### 🛠️ Technology Stack
-        
-        - **Frontend**: Streamlit
-        - **ML Framework**: Custom Logistic Regression
-        - **Data Processing**: NumPy, Pandas
-        - **Styling**: Custom CSS with gradient themes
-        - **Export**: JSON format for interoperability
-        - **Deployment**: Python 3.x compatible
-        
-        **Development Principles**:
-        - Clean, maintainable code
-        - Medical accuracy prioritization
-        - Ethical AI practices
-        - User privacy protection
-        """)
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("""
-    ### 🔐 Privacy & Data Security
-    
-    **Your Privacy Matters**:
-    - ✅ No data is stored on servers
-    - ✅ No personal information collected
-    - ✅ No tracking or cookies used
-    - ✅ All processing done locally in your browser session
-    - ✅ No third-party data sharing
-    
-    **Session Data**:
-    - Input data exists only during your session
-    - Automatically cleared when you close the browser
-    - You control all data through export features
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("""
-    ### 📚 Educational Value
-    
-    This application serves as an educational tool to:
-    
-    1. **Understand Risk Factors**: Learn which factors contribute to cardiovascular disease
-    2. **Health Awareness**: Recognize the importance of lifestyle modifications
-    3. **Preventive Care**: Understand preventive measures and their impact
-    4. **Data Literacy**: See how health data translates to risk assessment
-    5. **ML Applications**: Demonstrate practical machine learning in healthcare
-    
-    **Learning Resources**:
-    - Interactive risk assessment
-    - Detailed prevention strategies
-    - Real-time health metric interpretation
-    - Comprehensive model documentation
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
+st.markdown("""
+<div id="stats" class="section">
+<h2 class="section-title">Performance Metrics</h2>
+<p class="section-subtitle">Transparent model performance evaluation</p>
 
-# ============================================================================
-# TAB 4: DISCLAIMER
-# ============================================================================
-with tab4:
-    st.markdown('<h2 class="section-header">⚠️ Important Disclaimers</h2>', unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="warning-box">
-        <h3>🚨 Medical Disclaimer</h3>
-        <p style="font-size: 1.1rem; line-height: 1.8;">
-            <strong>THIS APPLICATION IS FOR EDUCATIONAL AND INFORMATIONAL PURPOSES ONLY.</strong>
-        </p>
-        <p style="line-height: 1.8;">
-            The predictions and information provided by this cardiovascular disease risk predictor
-            are based on statistical models and machine learning algorithms. They are NOT intended
-            to be a substitute for professional medical advice, diagnosis, or treatment.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("""
-    ### ⚕️ Professional Medical Advice Required
-    
-    **ALWAYS consult qualified healthcare professionals**:
-    
-    - **Diagnosis**: Only licensed physicians can diagnose cardiovascular disease
-    - **Treatment**: Medical treatment requires proper clinical evaluation
-    - **Medication**: Never start or stop medications without doctor consultation
-    - **Emergency**: Chest pain, shortness of breath → Call emergency services immediately
-    
-    **This tool cannot replace**:
-    - Physical examination by a doctor
-    - Medical imaging (ECG, echocardiogram, stress tests)
-    - Blood work and laboratory analysis
-    - Clinical judgment and medical expertise
-    - Comprehensive patient history evaluation
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("""
-    ### 🎯 Limitations of This Model
-    
-    **Model Limitations**:
-    
-    1. **Statistical Nature**: Predictions are probabilistic, not definitive
-    2. **Training Data**: Limited to patterns in historical data
-    3. **Individual Variation**: Cannot account for all personal health factors
-    4. **Simplified Features**: Uses limited set of health metrics
-    5. **No Context**: Cannot consider full medical history
-    6. **No Imaging**: Cannot analyze medical scans or tests
-    7. **Population-Based**: May not reflect individual circumstances
-    8. **No Follow-up**: Cannot monitor disease progression
-    
-    **Not Suitable For**:
-    - Emergency medical situations
-    - Definitive diagnosis
-    - Treatment planning
-    - Medication adjustment
-    - Replacing doctor visits
-    - Legal or insurance purposes
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("""
-    ### ⚖️ Liability & Responsibility
-    
-    **User Responsibility**:
-    
-    By using this application, you acknowledge and agree that:
-    
-    - You understand this is an educational tool only
-    - You will not use results for self-diagnosis or self-treatment
-    - You will consult healthcare professionals for medical decisions
-    - You accept all responsibility for how you use this information
-    - You will not hold developers liable for any health outcomes
-    
-    **Developer Limitations**:
-    
-    - No warranty of accuracy or reliability
-    - No guarantee of model performance
-    - No liability for decisions made based on predictions
-    - Not responsible for misuse or misinterpretation
-    - Continuous improvement but no perfection guarantee
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("""
-    ### 🚑 When to Seek Immediate Medical Help
-    
-    **Call Emergency Services (911/112) IMMEDIATELY if you experience**:
-    
-    - 🚨 **Chest pain or pressure** (especially lasting >5 minutes)
-    - 🚨 **Severe shortness of breath**
-    - 🚨 **Pain radiating to arm, jaw, neck, or back**
-    - 🚨 **Sudden severe headache**
-    - 🚨 **Loss of consciousness or fainting**
-    - 🚨 **Irregular or rapid heartbeat with symptoms**
-    - 🚨 **Cold sweats with chest discomfort**
-    - 🚨 **Sudden weakness or numbness** (especially one-sided)
-    
-    **DO NOT**:
-    - ❌ Wait to see if symptoms improve
-    - ❌ Drive yourself to hospital
-    - ❌ Rely on this app during emergencies
-    
-    **Time is critical** in cardiovascular emergencies. Every minute counts.
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="info-card">', unsafe_allow_html=True)
-    st.markdown("""
-    ### 📋 Recommended Actions
-    
-    **If you receive a HIGH RISK result**:
-    
-    1. ✅ Schedule appointment with primary care physician
-    2. ✅ Request comprehensive cardiovascular evaluation
-    3. ✅ Consider seeing a cardiologist
-    4. ✅ Discuss lifestyle modifications with doctor
-    5. ✅ Get recommended medical tests (ECG, blood work, etc.)
-    6. ✅ Start tracking your blood pressure and other metrics
-    
-    **If you receive a LOW/MODERATE RISK result**:
-    
-    1. ✅ Maintain regular health check-ups
-    2. ✅ Continue healthy lifestyle habits
-    3. ✅ Monitor changes in health status
-    4. ✅ Discuss results with doctor at next visit
-    5. ✅ Stay informed about cardiovascular health
-    
-    **Remember**: ANY risk level warrants professional medical consultation.
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="warning-box">
-        <h3>✅ Acceptance of Terms</h3>
-        <p style="line-height: 1.8;">
-            By using this application, you acknowledge that you have read, understood, and agree
-            to all disclaimers and limitations stated above. You confirm that you will use this
-            tool responsibly as an educational resource only and will seek professional medical
-            advice for all health-related decisions.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+<div class="stats-grid">
+<div class="stat-card">
+<div class="stat-number">73.1%</div>
+<div class="stat-label">Test Accuracy</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-number">71.2%</div>
+<div class="stat-label">Precision</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-number">75.0%</div>
+<div class="stat-label">Recall</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-number">0.731</div>
+<div class="stat-label">F1-Score</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-number">0.820</div>
+<div class="stat-label">ROC-AUC</div>
+</div>
+
+<div class="stat-card">
+<div class="stat-number">12</div>
+<div class="stat-label">Features</div>
+</div>
+</div>
+
+<div class="assessment-container" style="margin-top: 3rem;">
+<h3 style="font-size: 1.8rem; margin-bottom: 2rem;">🔍 Model Features</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+<div>
+    <h4 style="color: #3b82f6; margin-bottom: 1rem;">📊 Numerical Features (Scaled)</h4>
+    <p>• Age (18-100 years)</p>
+    <p>• Height (120-220 cm)</p>
+    <p>• Weight (30-200 kg)</p>
+    <p>• Systolic BP (80-250 mmHg)</p>
+    <p>• Diastolic BP (40-150 mmHg)</p>
+    <p>• BMI (calculated)</p>
+</div>
+<div>
+    <h4 style="color: #3b82f6; margin-bottom: 1rem;">🏷️ Categorical Features</h4>
+    <p>• Gender (Male/Female)</p>
+    <p>• Cholesterol Level (0/1/2)</p>
+    <p>• Glucose Level (0/1/2)</p>
+    <p>• Smoking Status (0/1)</p>
+    <p>• Alcohol Consumption (0/1)</p>
+    <p>• Physical Activity (0/1)</p>
+</div>
+</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
 
 # ============================================================================
 # FOOTER
 # ============================================================================
-st.markdown("---")
-st.markdown(
-    """
-    <div style='text-align: center; padding: 2rem 0; color: #888;'>
-        <p style='font-size: 0.9rem;'>
-            🫀 <strong>Cardiovascular Disease Risk Predictor</strong> | 
-            Built for Educational Purposes | 
-            © 2024
-        </p>
-        <p style='font-size: 0.85rem; font-style: italic; margin-top: 0.5rem;'>
-            Always consult qualified healthcare professionals for medical advice
-        </p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<div class="footer">
+    <h3 style="background: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
+               -webkit-background-clip: text;
+               -webkit-text-fill-color: transparent;
+               font-size: 2rem;
+               margin-bottom: 1rem;">
+        ❤️ CardioGuard AI
+    </h3>
+    <p class="footer-text">Advanced AI Technology • Built for Prevention • Smart Heart Care</p>
+    <p class="footer-text">© 2024 CardioGuard AI | Educational Purpose Only</p>
+    <p class="footer-text">Always Consult Healthcare Professionals for Medical Decisions</p>
+</div>
+""", unsafe_allow_html=True)
